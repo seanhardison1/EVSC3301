@@ -1,0 +1,147 @@
+---
+title: "Atmosphere and Weather Lab 3: Radiation"
+runtime: shiny
+output: html_document
+---
+### Planck's Law and Wien's Law
+
+```{r, echo = F, message=F}
+library(tidyverse)
+library(ggtext)
+shinyjs::useShinyjs()
+```
+
+**Planck's law** says that the energy spectrum ($E(\lambda)$) of a black body is related to its absolute temperature ($T$), and is given by
+
+$$E(\lambda) = \frac{C_{1}\lambda^{-5}}{\textrm{EXP}(\frac{C_2}{\lambda T})-1},$$
+where $C_1$ = 3.74x10^8^ Wm^-2^, $C_2$ = 1.44x10^4^ $\mu mK$, $\lambda$ is the wavelength in $\mu m$, and $T$ is temperature in K. 
+
+**Wien's law** says that the wavelength of maximum emission for a black body ($\lambda_m$) is inversely proportional to its temperature. Wien's law is given by
+
+$$\lambda_{m} = \frac{2897\mu mK}{T},$$
+where $T$ is temperature in K.
+
+### Visualizing Planck's Law and Wien's Law
+
+```{r, echo = F}
+e_lam <- function(c1, c2, lambda, t){
+  c1 * lambda ^ (-5) * exp(-1 * (c2/ (lambda * t) ))
+}
+w_law <- function(t){
+  2897/t
+}
+
+c1 <- 3.74e8
+c2 <- 1.44e4
+earth_irrad <- tibble(irrad = 26,
+                      lambda = 10^1,
+                      label = "Irradiance of\n the Earth")
+sun_irrad <- tibble(irrad = 83468929,
+                      lambda = 0.7,
+                      label = "Irradiance of\n the Sun",
+                      hjust = 0,
+                      vjust = 1)
+```
+
+Use the slider below to visualize how changing the absolute temperature of a black body changes its emission spectra. The wavelength of maximum emission, $\lambda_m$, is reported at the top of the figure. 
+
+```{r echo = FALSE}
+# shiny::textInput("lambda",shiny::HTML("Enter &lambda;"),
+#                  value = "")
+# shiny::textInput("T_",shiny::HTML("Enter T"),
+#                  value = "5800")
+shinyWidgets::chooseSliderSkin("Flat", color = "#112446")
+
+shiny::sliderInput("T_",shiny::HTML("Select temperature"),
+                   min = 100,
+                   max = 5800,
+                   step = 5,
+                   value = 100)
+
+shinyWidgets::awesomeCheckbox(
+   inputId = "scale",
+   label = shiny::HTML("Scale earth irradiance by 1e6 Wm<sup>-2</sup> &mu;m<sup>-1</sup>"), 
+   value = F
+)
+```
+ 
+```{r echo = FALSE}
+
+df <- shiny::reactive({
+        int <- tibble::tibble(lambda = seq(10^-1, 10^2, 10^-1),
+                 irrad = e_lam(c1, c2, 
+                               lambda = lambda,
+                               t = as.numeric(input$T_)),
+                 earth_irrad = e_lam(c1, c2, 
+                               lambda = lambda,
+                               t = 288)) 
+        
+        if (input$scale){
+          int$earth_irrad <- int$earth_irrad * 1e6
+          earth_irrad$irrad <- earth_irrad$irrad * 1e6
+          earth_irrad$label <- "Scaled earth irradiance"
+        }
+        
+        lmax <- tibble(lambda = w_law(input$T_),
+                       irrad = max(int$irrad))
+        
+        return(list(int = int,
+                    earth_irrad = earth_irrad,
+                    lmax = lmax))
+      })
+
+renderPlot({
+  if (input$T_ < 5800){
+    
+    p <- ggplot(df()$int) +
+      geom_line(aes(x = lambda, y = irrad)) +
+      geom_line(aes(x = lambda, y = earth_irrad),
+                color = "purple") +
+      geom_richtext(data = df()$earth_irrad,
+                    aes(x = lambda, y = irrad, label = label)) +
+      scale_x_continuous(trans = "log10") +
+      theme_bw() +
+      labs(y = "Irradiance (Wm<sup>-2</sup> &mu;m<sup>-1</sup>)",
+           x = "Wavelength &lambda; (&mu;m)",
+           title = paste0("Black body energy spectra (&lambda;<sub>m</sub>: ",
+                         round(df()$lmax$lambda,3),")")) +
+      theme(axis.title.y = element_textbox(orientation = "left-rotated"),
+            plot.title = element_textbox(),
+            axis.text.x = element_text(vjust = -2),
+            axis.title.x = element_textbox()) +
+      annotation_logticks(sides = "b",
+                          outside = T) +
+      coord_cartesian(clip = "off") +
+      scale_y_continuous(expand = c(0.025,0.025))
+   
+  } else if (input$T_ == 5800)  {
+    
+    p <- ggplot(df()$int) +
+      geom_line(aes(x = lambda, y = irrad)) +
+      geom_line(aes(x = lambda, y = earth_irrad),
+                color = "purple") +
+      geom_richtext(data = sun_irrad,
+                    aes(x = lambda, y = irrad, label = label,
+                        hjust = hjust,
+                        vjust = vjust)) +
+      geom_richtext(data = df()$earth_irrad,
+              aes(x = lambda, y = irrad, label = label)) +
+      scale_x_continuous(trans = "log10") +
+      theme_bw() +
+      labs(y = "Irradiance (Wm<sup>-2</sup> &mu;m<sup>-1</sup>)",
+           x = "Wavelength &lambda; (&mu;m)",
+           title = paste0("Black body energy spectra (&lambda;<sub>m</sub>: ",
+                         round(df()$lmax$lambda,3),")")) +
+      theme(axis.title.y = element_textbox(orientation = "left-rotated"),
+            plot.title = element_textbox(),
+            axis.text.x = element_text(vjust = -2),
+            axis.title.x = element_textbox()) +
+      annotation_logticks(sides = "b",
+                          outside = T) +
+      coord_cartesian(clip = "off") +
+      scale_y_continuous(expand = c(0.025,0.025))
+    
+  }
+  p
+})
+```
