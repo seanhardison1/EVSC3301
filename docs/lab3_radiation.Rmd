@@ -3,11 +3,12 @@ title: "Atmosphere and Weather Lab 3: Radiation"
 runtime: shiny
 output: html_document
 ---
-### Planck's Law and Wien's Law
+### Radiation Laws
 
 ```{r, echo = F, message=F}
 library(tidyverse)
 library(ggtext)
+library(patchwork)
 shinyjs::useShinyjs()
 ```
 
@@ -21,7 +22,19 @@ where $C_1$ = 3.74x10^8^ Wm^-2^, $C_2$ = 1.44x10^4^ $\mu mK$, $\lambda$ is the w
 $$\lambda_{m} = \frac{2897\mu mK}{T},$$
 where $T$ is temperature in K.
 
-### Visualizing Planck's Law and Wien's Law
+The **Stefan-Boltzmann Law** says that the total amount of energy emitted by a black body per unit area ($E$) is equal to the integral of irradiance across all wavelengths. $E$ is given by 
+
+$$E = \sigma T^4,$$
+where $\sigma$ is the Stefan-Boltzmann constant of 5.67e-8 $Wm^{-2}K^{-4}$, $T$ is temperature in Kelvin, and $E$ has units of $Wm^{-2}$. 
+
+### Emissivity
+
+The radiation laws described above assume that the radiation-emitting objects being characterized are **black bodies**, which are theoretical objects that are perfect absorbers and emitters of energy. In reality, black bodies do not exist, and instead all objects emit radiation at some fraction of that emitted by a black body. This fraction is referred to as the **emissivity** ($\epsilon$) of an object, and this term enters into the Stefan-Boltzmann Law as
+
+$$E = \epsilon \sigma T^4.$$
+Emissivity is bound between 0 and 1.
+
+#### Interactions between Planck's, Wien's and Stefan-Boltzmann Laws
 
 ```{r, echo = F}
 e_lam <- function(c1, c2, lambda, t){
@@ -31,6 +44,11 @@ w_law <- function(t){
   2897/t
 }
 
+E <- function(sigma, t, e = 1){
+  sigma * (t^4) * e
+}
+
+sigma <- 5.67e-8
 c1 <- 3.74e8
 c2 <- 1.44e4
 earth_irrad <- tibble(irrad = 26,
@@ -43,7 +61,7 @@ sun_irrad <- tibble(irrad = 83468929,
                       vjust = 1)
 ```
 
-Use the slider below to visualize how changing the absolute temperature of a black body changes its emission spectra. The wavelength of maximum emission, $\lambda_m$, is reported at the top of the figure. 
+Use the slider below to visualize how changing the absolute temperature of a black body changes its emission spectra. The wavelength of maximum emission ($\lambda_m$) and total irradiance per unit area ($E$) are reported at the top of the figure. 
 
 ```{r echo = FALSE}
 # shiny::textInput("lambda",shiny::HTML("Enter &lambda;"),
@@ -58,6 +76,12 @@ shiny::sliderInput("T_",shiny::HTML("Select temperature"),
                    step = 5,
                    value = 100)
 
+shiny::sliderInput("e",shiny::HTML("Select emissivity"),
+                   min = 0,
+                   max = 1,
+                   step = 0.1,
+                   value = 1)
+
 shinyWidgets::awesomeCheckbox(
    inputId = "scale",
    label = shiny::HTML("Scale earth irradiance by 1e6 Wm<sup>-2</sup> &mu;m<sup>-1</sup>"), 
@@ -65,7 +89,7 @@ shinyWidgets::awesomeCheckbox(
 )
 ```
  
-```{r echo = FALSE}
+```{r echo = FALSE, fig.show="hold", out.width = "50%"}
 
 df <- shiny::reactive({
         int <- tibble::tibble(lambda = seq(10^-1, 10^2, 10^-1),
@@ -85,12 +109,16 @@ df <- shiny::reactive({
         lmax <- tibble(lambda = w_law(input$T_),
                        irrad = max(int$irrad))
         
+        E_tot <- tibble(E_tot = c(E(sigma, t = input$T_)),
+                        E_emis = E_tot * input$e)
+        
         return(list(int = int,
                     earth_irrad = earth_irrad,
-                    lmax = lmax))
+                    lmax = lmax,
+                    E_tot = E_tot))
       })
 
-renderPlot({
+p <- renderPlot({
   if (input$T_ < 5800){
     
     p <- ggplot(df()$int) +
@@ -103,8 +131,12 @@ renderPlot({
       theme_bw() +
       labs(y = "Irradiance (Wm<sup>-2</sup> &mu;m<sup>-1</sup>)",
            x = "Wavelength &lambda; (&mu;m)",
-           title = paste0("Black body energy spectra (&lambda;<sub>m</sub>: ",
-                         round(df()$lmax$lambda,3),")")) +
+           title = paste0("Black body energy spectra (&lambda;<sub>m</sub> = ",
+                         round(df()$lmax$lambda,3),", E<sub>BB</sub> = ",
+                         round(df()$E_tot$E_tot, 3),
+                         ", E<sub>&epsilon;</sub> = ",
+                         round(df()$E_tot$E_emis, 3),
+                         ")")) +
       theme(axis.title.y = element_textbox(orientation = "left-rotated"),
             plot.title = element_textbox(),
             axis.text.x = element_text(vjust = -2),
@@ -113,7 +145,7 @@ renderPlot({
                           outside = T) +
       coord_cartesian(clip = "off") +
       scale_y_continuous(expand = c(0.025,0.025))
-   
+    
   } else if (input$T_ == 5800)  {
     
     p <- ggplot(df()$int) +
@@ -130,8 +162,12 @@ renderPlot({
       theme_bw() +
       labs(y = "Irradiance (Wm<sup>-2</sup> &mu;m<sup>-1</sup>)",
            x = "Wavelength &lambda; (&mu;m)",
-           title = paste0("Black body energy spectra (&lambda;<sub>m</sub>: ",
-                         round(df()$lmax$lambda,3),")")) +
+           title = paste0("Black body energy spectra (&lambda;<sub>m</sub> = ",
+                         round(df()$lmax$lambda,3),", E<sub>BB</sub> = ",
+                         round(df()$E_tot$E_tot, 3),
+                         ", E<sub>&epsilon;</sub> = ",
+                         round(df()$E_tot$E_emis, 3),
+                         ")")) +
       theme(axis.title.y = element_textbox(orientation = "left-rotated"),
             plot.title = element_textbox(),
             axis.text.x = element_text(vjust = -2),
@@ -140,8 +176,49 @@ renderPlot({
                           outside = T) +
       coord_cartesian(clip = "off") +
       scale_y_continuous(expand = c(0.025,0.025))
-    
   }
   p
 })
+
+p
+
 ```
+
+#### The inverse square law
+
+The amount of energy passing through a unit area (irradiance) is inversely proportional to the square of the distance separating the source and object. This is captured by the **inverse square law**:
+
+$$\frac{E_1}{E_2} = (\frac{d_2}{d_1})^2$$
+Where $E_1$ is the irradiance at the source at distance $d_1$ from the source center. $E_2$ is the irradiance at some distance $d_2$ from the source. The figure below illustrates the **quadratic** relationship between top of atmosphere irradiance and the distances of planets from the sun.
+
+```{r, echo = F}
+# Diameter of the sun (km)
+d1 <- 6.95e5 
+
+# Distance from the Sun to the planets (km)
+d2 <- c(Mercury = 57.9e6, Venus = 108.2e6, Earth = 149.5e6, 
+        Mars = 227.9e6, Jupiter = 778.3e6, Saturn = 1427e6,
+        Uranus = 2871e6, Neptune = 4497e6)
+
+# Irradiance emitted at the surface of the Sun (Wm^-2)
+E1 <- 6.34e7
+
+# Solve for rough irradiance at each planet
+E2 <- function(d2, d1, E1){
+  E1/((d2/d1)^2)
+}
+
+irrads <- tibble(irrads = E2(d2, d1, E1),
+                 planets = names(E2(d2, d1, E1)),
+                 distance = d2)
+
+ggplot(irrads) +
+  geom_line(aes(x = distance, y = irrads)) +
+  geom_label(aes(x = distance, y = irrads, label = planets)) +
+  labs(x = "Distance from the Sun (km)",
+       y = "Top of atmosphere irradiance (E1) (Wm<sup>2</sup>)",
+       title = "The inverse square law") +
+  theme_bw() +
+  theme(axis.title.y = element_textbox(orientation = "left-rotated"))
+```
+
