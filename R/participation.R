@@ -20,7 +20,7 @@ for (i in 1:length(list.files(pe_dir))){
   all_lines <- suppressWarnings(readLines(file.path(pe_dir,
                                 list.files(pe_dir)[i])))
   
-  skip <- which(all_lines == "Individual Results") + 1
+  skip <- which(str_detect(all_lines, "Individual Results")) + 1
   
   init <- read.csv(file.path(pe_dir,
                              list.files(pe_dir)[i]),
