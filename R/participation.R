@@ -27,12 +27,22 @@ for (i in 1:length(list.files(pe_dir))){
                    skip = skip) %>% 
     as_tibble() %>% 
     dplyr::rename(student = Registered.participant) %>% 
-    dplyr::select(Created.At, student) %>% 
-    mutate(Participation = 1,
-           Created.At = round_date(ymd_hms(Created.At), unit = "10 minutes")) %>% 
+    dplyr::select(Created.At, student)  
+  
+  if (all(str_detect(init$Created.At, "\\/"))){
+    init$Created.At <- round_date(as_datetime(init$Created.At, 
+                                              format = "%e/%d/%y %H:%M"), 
+                                  unit = "10 minutes")
+  } else {
+    init$Created.At <- round_date(ymd_hms(init$Created.At), unit = "10 minutes")
+  }
+  
+  init %<>% 
+    mutate(Participation = 1) %>% 
     right_join(.,template) %>% 
     mutate(Participation = replace_na(Participation, 0),
            Created.At = mean(unique(Created.At), na.rm = T)) 
+  
   
   assign('df', rbind(df, init))
 }
