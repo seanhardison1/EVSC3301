@@ -4,13 +4,14 @@ library(lubridate)
 library(rvest)
 
 # Assignment details
-assign_name <- "Exam 1"
-point_total <- 50
+assign_name <- "Exam 2"
+point_total <- 48
 assign_dir <- here::here(file.path(here::here("data/assignments"),
                                    assign_name))
 
 # read assignment comments for each student
 final <- tibble()
+missed_qs <- tibble()
 for (i in 1:length(list.files(assign_dir))){
   # File path for comments
   student_path <- file.path(assign_dir,
@@ -29,6 +30,13 @@ for (i in 1:length(list.files(assign_dir))){
     html_nodes(xpath = '//p')%>%
     html_text()
   
+  int <- NULL
+  for (q in 1:length(comments)){
+    int <- tibble(missed_qs = str_sub(comments[q], 0,3),
+                  student_name = student_name)
+    assign('missed_qs', rbind(int, missed_qs))
+  }
+
   # Extract points lost. Should be written into comments
   points_off <- vector()
   for (j in 1:length(comments)){
